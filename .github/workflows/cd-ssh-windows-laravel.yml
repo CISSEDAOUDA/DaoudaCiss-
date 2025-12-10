@@ -1,0 +1,73 @@
+name: Deploy Laravel to Windows Server via SSH
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: windows-latest
+
+    steps:
+      # 1️⃣ Checkout du code
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2️⃣ Installer PHP
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v3
+        with:
+          php-version: '8.1'
+          extensions: mbstring, pdo, pdo_mysql, openssl
+
+      # 3️⃣ Installer les dépendances Composer
+      - name: Install Composer dependencies
+        run: composer install --no-dev --optimize-autoloader
+
+      # 4️⃣ Installer Node et builder les assets
+      - name: Setup Node and Build Assets
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+        run: |
+          npm ci
+          npm run build
+
+      # 5️⃣ Préparer le dossier release
+      - name: Prepare release folder
+        run: |
+          if (Test-Path release) { Remove-Item release -Recurse -Force }
+          New-Item -ItemType Directory -Path release
+          robocopy . release /MIR /XD node_modules .git storage vendor
+          composer install --no-dev --optimize-autoloader --working-dir=release
+
+      # 6️⃣ Upload fichiers via SFTP (WinSCP)
+      - name: Upload release via SFTP
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          port: 22
+          source: "release/*"
+          target: "C:/apps/laravel-staging/"
+
+      # 7️⃣ Déploiement à distance via SSH
+      - name: Remote deploy on Windows Server
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          script: |
+            $staging="C:\apps\laravel-staging"
+            $live="C:\apps\laravel-live"
+            cd $staging
+            php artisan migrate --force
+            php artisan config:cache
+            php artisan route:cache
+            # swap folders
+            if (Test-Path $live) {
+              Rename-Item $live ($live + "_old_" + (Get-Date -Format yyyyMMddHHmmss))
+            }
+            Rename-Item $staging $live
