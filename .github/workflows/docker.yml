@@ -1,0 +1,32 @@
+name: Build Python Docker
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Étape 1 : Récupérer ton code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Étape 2 : Installer Docker
+      - name: Install Docker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker.io
+          sudo systemctl start docker
+          sudo systemctl enable docker
+
+      # Étape 3 : Build de l'image Docker
+      - name: Build Docker image
+        run: docker build -t python-app .
+
+      # Étape 4 : Tester que tout fonctionne
+      - name: Show Docker images
+        run: docker images
