@@ -30,3 +30,15 @@ jobs:
       # Étape 4 : Tester que tout fonctionne
       - name: Show Docker images
         run: docker images
+
+      # Étape 5 : Login Docker Hub
+      - name: Login to Docker Hub
+        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+      # Étape 6 : Tag de l'image
+      - name: Tag image
+        run: docker tag python-app ${{ secrets.DOCKERHUB_USERNAME }}/python-app:latest
+
+      # Étape 7 : Push vers Docker Hub
+      - name: Push image
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/python-app:latest
